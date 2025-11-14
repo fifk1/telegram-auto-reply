@@ -5,6 +5,7 @@
 import asyncio
 import time
 from typing import Optional
+from pathlib import Path
 import undetected_chromedriver as uc
 import platform
 
@@ -25,9 +26,10 @@ logger = get_logger("undetected_browser")
 class UndetectedBrowserManager:
     """Менеджер браузера с использованием undetected-chromedriver"""
     
-    def __init__(self):
+    def __init__(self, profile_dir: Optional[Path] = None):
         self.driver: Optional[uc.Chrome] = None
         self.is_running = False
+        self.profile_dir = profile_dir  # Поддержка кастомного профиля
     
     async def start(self) -> None:
         """Запуск браузера с улучшенной обработкой ошибок"""
@@ -92,7 +94,10 @@ class UndetectedBrowserManager:
             options.add_argument('--use-mock-keychain')
             
             # Настройки профиля
-            user_data_dir = BROWSER_CONFIG.get("user_data_dir", str(CHROME_PROFILE_DIR))
+            if self.profile_dir:
+                user_data_dir = str(self.profile_dir)
+            else:
+                user_data_dir = BROWSER_CONFIG.get("user_data_dir", str(CHROME_PROFILE_DIR))
             options.add_argument(f'--user-data-dir={user_data_dir}')
             
             # Дополнительные настройки для стабильности
@@ -344,4 +349,43 @@ class UndetectedBrowserManager:
         except Exception as e:
             logger.warning(f"Ошибка при закрытии браузера: {e}")
             self.is_running = False
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

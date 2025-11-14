@@ -638,3 +638,42 @@ class UndetectedTelegramHandler(BaseSiteHandler):
             logger.error(f"Ошибка при выходе из чата: {e}")
             return False
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

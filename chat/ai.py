@@ -7,12 +7,13 @@ except ImportError:
     from chat.config import MODEL_PATH, AI_SETTINGS, get_system_prompt
 
 class AIModel:
-    def __init__(self):
+    def __init__(self, custom_system_prompt: str = None):
         self.logger = logging.getLogger(__name__)
         self.model = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.is_loaded = False
         self.model_name = MODEL_PATH
+        self.custom_system_prompt = custom_system_prompt  # Кастомный промпт для аккаунта
         
     def load_model(self):
         """Загружает модель и токенизатор"""
@@ -113,6 +114,77 @@ class AIModel:
             self.logger.error(f"Ошибка перевода: {e}")
             return response
     
+    def _format_prompt_with_context(self, prompt_template: str) -> str:
+        """Подставляет динамические значения (время, активность, настроение) в промпт"""
+        from datetime import datetime, timezone
+        from bisect import bisect_right
+        
+        try:
+            # Пытаемся использовать zoneinfo для МСК
+            from zoneinfo import ZoneInfo
+            msk_tz = ZoneInfo("Europe/Moscow")
+            now = datetime.now(msk_tz)
+            current_time_msk = now.strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            # Fallback на UTC
+            now = datetime.now(timezone.utc)
+            current_time_msk = now.strftime("%d.%m.%Y %H:%M") + " UTC"
+        
+        hour = now.hour
+        weekday = now.weekday()
+        month = now.month
+        
+        # День недели
+        weekdays_ru = ("понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье")
+        day_of_week = weekdays_ru[weekday]
+        is_weekend = weekday >= 5
+        
+        # Сезон
+        season = ("зима", "весна", "лето", "осень")[(month % 12) // 3]
+        
+        # Активность
+        time_boundaries = (7, 10, 14, 18, 23)
+        weekday_activities = (
+            "спишь или очень поздно бодрствуешь",
+            "просыпаешься и собираешься на работу/учебу",
+            "на работе или учебе",
+            "занят работой или учебой",
+            "дома после работы, занимаешься своими делами",
+            "спишь или очень поздно бодрствуешь",
+        )
+        weekend_activities = (
+            "спишь или очень поздно бодрствуешь",
+            "просыпаешься, неспеша собираешься",
+            "отдыхаешь или занимаешься своими делами",
+            "дома, можешь работать или просто отдыхать",
+            "дома, занимаешься своими делами",
+            "спишь или очень поздно бодрствуешь",
+        )
+        activities = weekend_activities if is_weekend else weekday_activities
+        idx = bisect_right(time_boundaries, hour)
+        current_activity = activities[idx]
+        
+        # Настроение
+        if hour < 7 or hour >= 23:
+            current_mood = "очень сонный" if hour < 3 else "засиделся, но уже поздно"
+        elif hour < 10:
+            current_mood = "немного сонный, но бодрый" if not is_weekend else "выспавшийся, расслабленный"
+        elif hour < 14:
+            current_mood = "активный, в работе или учёбе"
+        elif hour < 18:
+            current_mood = "уставший после учёбы, но ещё есть силы"
+        else:
+            current_mood = "расслабленный, отдыхаешь после дня"
+        
+        # Форматируем промпт
+        return prompt_template.format(
+            CURRENT_TIME_MSK=current_time_msk,
+            DAY_OF_WEEK=day_of_week,
+            CURRENT_ACTIVITY=current_activity,
+            CURRENT_MOOD=current_mood,
+            SEASON=season
+        )
+    
     def _finalize_response(self, text: str) -> str:
         """Приводит ответ к завершённому виду: убирает обрывы, завершает предложением."""
         if not text:
@@ -188,7 +260,13 @@ class AIModel:
             # Формируем сообщения для chat-completions с учетом вашей истории
             chat_messages = []
             # Динамический системный промпт с актуальным временем по МСК
-            system_prompt_text = get_system_prompt()
+            # Используем кастомный промпт если задан, иначе стандартный
+            if self.custom_system_prompt:
+                system_prompt_text = self.custom_system_prompt
+                # Подставляем динамические значения времени/активности/настроения
+                system_prompt_text = self._format_prompt_with_context(system_prompt_text)
+            else:
+                system_prompt_text = get_system_prompt()
             if system_prompt_text:
                 chat_messages.append({"role": "system", "content": system_prompt_text})
             if messages:
@@ -239,4 +317,43 @@ class AIModel:
         except Exception as e:
             self.logger.error(f"❌ Ошибка генерации ответа: {e}")
             return None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
